@@ -56,7 +56,11 @@ static bool check_master_roles(char **newval, void **extra,
 							   GucSource source);
 static void assign_master_roles(const char *newval, void *extra);
 
-#if PG_VERSION_NUM >= 130000
+#if PG_VERSION_NUM >= 140000
+static void pgr_ProcessUtility(PlannedStmt *pstmt, const char *queryString, bool readOnlyTree,
+							   ProcessUtilityContext context, ParamListInfo params, QueryEnvironment *queryEnv,
+							   DestReceiver *dest, QueryCompletion *qc);
+#elif PG_VERSION_NUM >= 130000
 static void pgr_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
 							   ProcessUtilityContext context, ParamListInfo params, QueryEnvironment *queryEnv,
 							   DestReceiver *dest, QueryCompletion *qc);
@@ -151,7 +155,14 @@ _PG_fini(void)
 /*
  * ProcessUtility hook
  */
-#if PG_VERSION_NUM >= 130000
+#if PG_VERSION_NUM >= 140000
+static void
+pgr_ProcessUtility(PlannedStmt *pstmt, const char *queryString, bool readOnlyTree,
+				   ProcessUtilityContext context, ParamListInfo params, QueryEnvironment *queryEnv,
+				   DestReceiver *dest, QueryCompletion *qc)
+{
+	Node	*pst = (Node *) pstmt->utilityStmt;
+#elif PG_VERSION_NUM >= 130000
 static void
 pgr_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
 				   ProcessUtilityContext context, ParamListInfo params, QueryEnvironment *queryEnv,
@@ -308,7 +319,16 @@ pgr_ProcessUtility(Node *pst, const char *queryString,
 	 * Fallback to normal process, be it the previous hook loaded
 	 * or the in-core code path if the previous hook does not exist.
 	 */
-#if PG_VERSION_NUM >= 130000
+#if PG_VERSION_NUM >= 140000
+	if (prev_ProcessUtility)
+		prev_ProcessUtility(pstmt, queryString, readOnlyTree,
+							context, params, queryEnv,
+							dest, qc);
+	else
+		standard_ProcessUtility(pstmt, queryString, readOnlyTree,
+								context, params, queryEnv,
+								dest, qc);
+#elif PG_VERSION_NUM >= 130000
 	if (prev_ProcessUtility)
 		prev_ProcessUtility(pstmt, queryString,
 							context, params, queryEnv,
